@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>營養追蹤</title>
+
+<meta name="description" content="增肌期的每日熱量、蛋白質與微量營養素追蹤">
+<meta name="theme-color" content="#4A7C59">
+<link rel="manifest" href="./manifest.json">
+
+<!-- iOS 加入主畫面 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="營養">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
+
+<!-- 內容安全政策：限制這個頁面只能連到必要的來源。
+     萬一哪天有 XSS，也沒辦法把資料送去別的地方。
+     connect-src 只開 Gemini（AI 估算），沒有任何分析或追蹤服務。 -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self';
+  style-src 'self' 'unsafe-inline';
+  font-src 'self';
+  img-src 'self' data: blob:;
+  connect-src 'self' https://generativelanguage.googleapis.com;
+  form-action 'none';
+  base-uri 'self';
+  object-src 'none'">
+<!-- 字型全部自架，不對外連任何一個網域。
+     中文用系統內建（iOS 的 PingFang TC、Android 的 Noto Sans CJK），品質好又不用下載；
+     只有數字用的 DM Mono 自己放（87KB），Google 完全看不到使用者的 IP。 -->
+<style>
+  @font-face{font-family:'DM Mono';font-style:normal;font-weight:400;font-display:swap;
+    src:url('./fonts/dm-mono-1.woff2') format('woff2')}
+  @font-face{font-family:'DM Mono';font-style:normal;font-weight:500;font-display:swap;
+    src:url('./fonts/dm-mono-2.woff2') format('woff2')}
+</style>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <div class="top-in">
+      <div class="datenav">
+        <button id="prev" aria-label="前一天">‹</button>
+        <button class="dlabel" id="dlabel" aria-label="選擇日期">—</button>
+        <button id="next" aria-label="後一天">›</button>
+      </div>
+      <button class="today-btn" id="jump">回今天</button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab on" data-p="today" role="tab">今天</button>
+      <button class="tab" data-p="trend" role="tab">趨勢</button>
+      <button class="tab" data-p="set" role="tab">設定</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ============ 今天 ============ -->
+  <div class="pane on" id="p-today">
+
+    <div class="hero">
+      <div class="hero-top">
+        <div class="hero-lab">今日能量</div>
+        <div class="hero-eaten mono" id="eaten">0 kcal</div>
+      </div>
+      <div class="hero-msg" id="hmsg">還要吃 <b>1700</b></div>
+      <div class="hero-sub" id="hsub">目標 1,700 大卡</div>
+      <div class="gauge">
+        <div class="gauge-surplus" id="gsur"></div>
+        <div class="gauge-fill" id="gfill" style="width:0%"></div>
+        <div class="gauge-mark" id="gmark"></div>
+      </div>
+      <div class="gauge-scale"><span>0</span><span id="gtl">目標 1700</span><span id="gmax">2200</span></div>
+
+      <div class="macros">
+        <div class="macro-row mp"><div class="macro-n">蛋白質</div><div class="macro-track"><div class="macro-bar" id="bp" style="width:0%"></div></div><div class="macro-v" id="vp">0 / 85g</div></div>
+        <div class="macro-row mc"><div class="macro-n">碳水</div><div class="macro-track"><div class="macro-bar" id="bc" style="width:0%"></div></div><div class="macro-v" id="vc">0 / 213g</div></div>
+        <div class="macro-row mf"><div class="macro-n">脂肪</div><div class="macro-track"><div class="macro-bar" id="bf" style="width:0%"></div></div><div class="macro-v" id="vf">0 / 57g</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>其他營養素</h3><span class="meta">來自食物</span></div>
+      <div id="micros"></div>
+      <div class="card-h" style="padding-top:4px"><h3 style="font-size:13.5px">維他命・礦物質</h3><span class="meta">來自保健品</span></div>
+      <div class="vgrid" id="vits"></div>
+      <div class="note" style="padding:4px 16px 14px">維他命與礦物質依保健品打勾自動計算，食物另外還會再貢獻一些（尤其鐵）。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>今天體重</h3><span class="meta" id="wdiff"></span></div>
+      <div class="wrow">
+        <input type="number" inputmode="decimal" step="0.1" id="win" placeholder="55.0" aria-label="體重 kg">
+        <span class="unit">kg</span>
+        <button class="wsave" id="wsave">記錄</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h3>今天喝水</h3>
+        <div class="card-h-r">
+          <button class="linkbtn" id="waRst">歸零</button>
+          <span class="meta" id="wameta">0 / 2000 ml</span>
+        </div>
+      </div>
+      <div class="watrack"><div class="wabar" id="wabar" style="width:0%"></div></div>
+      <div class="warow">
+        <button class="wabtn" id="wa250">＋250</button>
+        <button class="wabtn" id="wa500">＋500</button>
+        <button class="wabtn" id="waCus">自訂…</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>保健品</h3><span class="meta" id="scount">0 / 5</span></div>
+      <div id="supps"></div>
+    </div>
+
+    <div class="acts">
+      <button class="act act-cam" id="camBtn">📷 拍照記錄</button>
+      <button class="act act-man" id="manBtn">✏️ 文字描述</button>
+    </div>
+    <input type="file" id="fileIn" accept="image/*" hidden>
+
+    <div class="card">
+      <div class="card-h">
+        <h3>常吃的</h3>
+        <div class="card-h-r">
+          <button class="linkbtn" id="manageChips">管理</button>
+          <span class="meta">點一下就記</span>
+        </div>
+      </div>
+      <div class="mealsel" id="mealsel"></div>
+      <div class="searchrow">
+        <input type="search" id="chipq" placeholder="搜尋常吃項目…" autocomplete="off" aria-label="搜尋常吃項目">
+      </div>
+      <div class="chipwrap" id="chips"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h3>今天吃了</h3>
+        <div class="card-h-r">
+          <button class="linkbtn" id="copyPrev">複製前一天</button>
+          <span class="meta" id="fcount">0 項</span>
+        </div>
+      </div>
+      <div id="flist"></div>
+      <div class="note" style="padding:8px 16px 14px">點品項名稱可以修改數字。</div>
+    </div>
+  </div>
+
+  <!-- ============ 趨勢 ============ -->
+  <div class="pane" id="p-trend">
+    <div class="card">
+      <div class="card-h"><h3>體重趨勢</h3><span class="meta" id="wgoal">目標 45kg</span></div>
+      <div class="chartbox"><svg id="wchart" viewBox="0 0 340 150" role="img" aria-label="體重趨勢圖"></svg></div>
+      <div class="stats">
+        <div class="stat"><b id="s-now">—</b><span>目前體重</span></div>
+        <div class="stat"><b id="s-chg">—</b><span>總變化</span></div>
+        <div class="stat"><b id="s-rate">—</b><span>每月增幅</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>近 14 天熱量</h3><span class="meta" id="kline">目標 1700</span></div>
+      <div class="chartbox"><svg id="kchart" viewBox="0 0 340 130" role="img" aria-label="近 14 天熱量圖"></svg></div>
+      <div class="stats">
+        <div class="stat"><b id="s-avgk">—</b><span>7天均熱量</span></div>
+        <div class="stat"><b id="s-avgp">—</b><span>7天均蛋白</span></div>
+        <div class="stat"><b id="s-sur">—</b><span>7天累積盈餘</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>InBody 紀錄</h3><button class="linkbtn" id="addIb">＋ 新增</button></div>
+      <div class="ib ib-head"><span class="lab">日期</span><span class="lab">體重</span><span class="lab">骨骼肌</span><span class="lab">體脂率</span><span></span></div>
+      <div id="iblist"></div>
+      <div class="note" style="padding:12px 16px 16px">骨骼肌重是增肌真正的成績單，比每天的體重誠實。建議每 2–3 個月量一次。</div>
+    </div>
+
+    <button class="bigbtn" id="expBtn">⬇ 匯出 CSV（給試算表看）</button>
+  </div>
+
+  <!-- ============ 設定 ============ -->
+  <div class="pane" id="p-set">
+    <div class="card">
+      <div class="card-h"><h3>每日目標</h3></div>
+      <div class="srow"><label for="t-k">熱量 (kcal)</label><input type="number" inputmode="numeric" id="t-k"></div>
+      <div class="srow"><label for="t-p">蛋白質 (g)</label><input type="number" inputmode="numeric" id="t-p"></div>
+      <div class="srow"><label for="t-c">碳水 (g)</label><input type="number" inputmode="numeric" id="t-c"></div>
+      <div class="srow"><label for="t-f">脂肪 (g)</label><input type="number" inputmode="numeric" id="t-f"></div>
+      <div class="srow"><label for="t-fi">纖維 (g)</label><input type="number" inputmode="numeric" id="t-fi"></div>
+      <div class="srow"><label for="t-su">糖上限 (g)</label><input type="number" inputmode="numeric" id="t-su"></div>
+      <div class="srow"><label for="t-na">鈉上限 (mg)</label><input type="number" inputmode="numeric" id="t-na"></div>
+      <div class="srow"><label for="t-sa">飽和脂肪上限 (g)</label><input type="number" inputmode="numeric" id="t-sa"></div>
+      <div class="srow"><label for="t-ch">膽固醇上限 (mg)</label><input type="number" inputmode="numeric" id="t-ch"></div>
+      <div class="srow"><label for="t-po">鉀 (mg)</label><input type="number" inputmode="numeric" id="t-po"></div>
+      <div class="srow"><label for="t-wa">喝水 (ml)</label><input type="number" inputmode="numeric" id="t-wa"></div>
+      <div class="srow"><label for="t-gw">目標體重 (kg)</label><input type="number" inputmode="decimal" step="0.1" id="t-gw"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h3>常吃清單</h3>
+        <div class="card-h-r">
+          <button class="linkbtn" id="preReset">還原預設</button>
+          <button class="linkbtn" id="addPre">＋ 新增</button>
+        </div>
+      </div>
+      <div id="prelist"></div>
+      <div class="note" style="padding:10px 16px 14px">
+        點名稱可以改數字，右邊 ✕ 是刪除。內建那幾筆也能改能刪。
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>保健品組合</h3><button class="linkbtn" id="suppReset">還原預設</button></div>
+      <div id="suppedit"></div>
+      <div class="note" style="padding:10px 16px 14px">
+        換保健品就改這裡。點一組進去可以改名稱、增刪品項、填維他命百分比，或整組停用。
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>AI 估算</h3><span class="meta" id="apiState">未設定</span></div>
+      <div class="frow">
+        <label for="a-key">你的 Gemini API 金鑰</label>
+        <input type="password" id="a-key" autocomplete="off" spellcheck="false"
+               placeholder="貼上金鑰，只存在這台裝置">
+      </div>
+      <div class="rowbtns">
+        <button class="minibtn" id="apiTest">測試連線</button>
+        <button class="minibtn" id="apiClear">清除</button>
+      </div>
+      <div class="note" style="padding:10px 16px 14px">
+        拍照／文字估算需要自己的 Gemini 金鑰，到
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a>
+        免費申請。金鑰只存在這台裝置，直接跟 Google 通訊，不會經過別人的伺服器。
+        不填也能用，只是沒有 AI 估算，其他功能都正常。
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>備份與還原</h3><span class="meta" id="dataStat">—</span></div>
+      <div class="rowbtns">
+        <button class="minibtn" id="jsonExp">⬇ 匯出 JSON</button>
+        <button class="minibtn" id="jsonImp">⬆ 匯入 JSON</button>
+      </div>
+      <input type="file" id="jsonFile" accept="application/json,.json" hidden>
+      <div class="note" style="padding:10px 16px 14px">
+        <b>資料只存在這台裝置，沒有雲端同步。</b>換手機、清瀏覽器資料前一定要先匯出，
+        建議每個月匯出一次。JSON 是完整備份（可還原），CSV 只是給試算表看的。
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>其他</h3><span class="meta" id="verLab">—</span></div>
+      <div class="rowbtns">
+        <button class="minibtn" id="seedBtn">載入範例資料</button>
+        <button class="minibtn danger" id="wipeBtn">清空所有資料</button>
+      </div>
+      <div class="note" style="padding:10px 16px 14px">
+        「載入範例資料」會寫入一天的示範紀錄，只是用來看看畫面長怎樣。
+      </div>
+    </div>
+
+    <div class="note">
+      拍照估算誤差約 ±20–30%，看不到用油和調味。當趨勢看夠用，別為幾克焦慮。<br><br>
+      資料存在這支手機的瀏覽器裡。每個月匯出一次 JSON 當備份比較保險。
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="sstat"></div>
+<div class="mask" id="mask">
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>

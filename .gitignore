@@ -1,0 +1,4 @@
+# wrangler 的登入快取會包含帳號 email 和 account ID，絕對不能進版控
+.wrangler/
+node_modules/
+.DS_Store
