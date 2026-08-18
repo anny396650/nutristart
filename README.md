@@ -2,7 +2,8 @@
 
 記錄每天吃了什麼、喝多少水、體重變化的小工具。手機開網頁就能用，可以加到主畫面像 App 一樣。
 
-**網址：https://nutristart.pages.dev**
+**線上版：https://nutristart.pages.dev**
+**原始碼：https://github.com/anny396650/nutristart**
 
 ---
 
@@ -95,7 +96,10 @@ AI 會直接讀標示的數字，比用外觀猜準得多。估算結果的「�
 整包程式碼就是 `index.html` + `styles.css` + `app.js` 三個檔案，
 **沒有框架、沒有 build step、沒有後端**，用瀏覽器直接開就會動。
 
-1. 下載這個 repo（右上角 Code → Download ZIP，或 `git clone`）
+1. 下載：右上角 **Code → Download ZIP**，或
+   ```bash
+   git clone https://github.com/anny396650/nutristart.git
+   ```
 2. 本機預覽：`python3 -m http.server 8765`，開 `http://localhost:8765`
 3. 改完丟到任何靜態主機就能用（Cloudflare Pages、Netlify、Vercel、GitHub Pages 都行）
 
